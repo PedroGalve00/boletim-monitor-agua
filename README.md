@@ -43,10 +43,12 @@ colab/exportar_contornos_boletim.ipynb   gera a pasta geo/ a partir dos assets d
 |---|---|
 | 1 | Capa |
 | 2 | Brasil (soma dos biomas): água do mês, triângulos vs média do mês e vs ano anterior, linhas mensais por ano (ano do boletim em azul-escuro, média em laranja), série do mês ao longo dos anos, posição no histórico |
-| 3 | Biomas: mapa do desvio, ranking da variação absoluta, anel com % abaixo da média, caixas do maior ganho e da maior perda |
-| 4 | Superfície de água mensal nos 6 biomas (estilo do factsheet) + destaques automáticos |
-| 5 | Estados: mapa com siglas, ranking das 27 UFs, anel e caixas |
-| 6 | Bacias: regiões hidrográficas e bacias nível 1 (mapa, anel, 3 maiores perdas) |
+| 3 | Biomas: mapa do desvio, ranking da variação absoluta, anel com % abaixo da média, caixas do maior ganho e da maior perda (com posição no mês e no ranking histórico) |
+| 4 | Superfície de água mensal nos 6 biomas + destaques automáticos |
+| 5 | UFs: mapa com siglas, ranking das 27 UFs, anel e caixas |
+| 6 | Regiões hidrográficas: mapa, ranking de ganhos e perdas, anel e caixas |
+| 7 | Bacias nível 1 (PNRH): mapa, 10 maiores ganhos e 10 maiores perdas, anel e caixas |
+| 8 | Ranking histórico do Brasil: posição do mês entre todos os meses da série e os 20 meses de maior perda e de maior ganho |
 
 Cada gráfico e mapa tem botões **PNG** (fundo transparente, 4× a tela) e **CSV**. **Baixar dados (CSV)** traz
 todos os territórios. As contas são as mesmas do Colab `boletim_agua_mensal.ipynb`.
