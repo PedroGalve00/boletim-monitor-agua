@@ -313,7 +313,7 @@ function svgSerieMes(pts, anoRef, media, {W=600, H=360, unid=1e6, rot='Superfíc
 /** Barras horizontais da diferença absoluta vs média (ganho azul, perda vermelho-escuro) */
 function svgBarras(rows, {W=560, lh=null, rotX='Diferença absoluta vs média histórica do mês'}={}){
   lh = lh || (rows.length<=8 ? 38 : rows.length<=14 ? 28 : 19);
-  const fs = rows.length<=8 ? 13 : 11.5;
+  const fs = rows.length<=8 ? 13 : lh<16 ? 10.5 : 11.5;
   const m={l:178,r:12,t:6,b:34}, H=m.t+m.b+rows.length*lh, A=W-m.l-m.r, L=128;   // L = espaço do rótulo
   const vs = rows.map(r=>r.dif/1e3), lo=Math.min(0,...vs), hi=Math.max(0,...vs);
   const temNeg = vs.some(v=>v<0), temPos = vs.some(v=>v>0);
@@ -412,8 +412,9 @@ function graf(titulo, svg, csv, nome){
   svg = svg.replace('<svg ', '<svg preserveAspectRatio="xMidYMin meet" ');   // desenho logo abaixo do título
   return `<div class="bloco"><div class="tit-graf">${titulo}</div><span class="acoes"><button onclick="baixarPNG('${id}')">PNG</button><button onclick="baixarCSV('${id}')">CSV</button></span>${svg}</div>`;
 }
-const csvLinhas = rows => [['codigo','nome','agua_mes_ha','media_mes_ha','dif_ha','desvio_pct','rank_historico','n_meses_historico','posicao_no_mes','n_anos_mes','frase_posicao'],
-  ...rows.map(r=>[r.code, r.name, Math.round(r.agua), Math.round(r.media), Math.round(r.dif), Number.isFinite(r.dev)?r.dev.toFixed(1):'', r.rankHist, r.nHist, r.posMes, r.nMes, r.frase])];
+const csvLinhas = rows => [['codigo','nome','agua_mes_ha','media_mes_ha','dif_ha','desvio_pct','rank_historico','n_meses_historico','posicao_no_mes','n_anos_mes','frase_posicao','agua_mes_anterior_ha','dif_mes_anterior_ha','var_mes_anterior_pct'],
+  ...rows.map(r=>[r.code, r.name, Math.round(r.agua), Math.round(r.media), Math.round(r.dif), Number.isFinite(r.dev)?r.dev.toFixed(1):'', r.rankHist, r.nHist, r.posMes, r.nMes, r.frase,
+                  Number.isFinite(r.aguaAnt)?Math.round(r.aguaAnt):'', Number.isFinite(r.difAnt)?Math.round(r.difAnt):'', Number.isFinite(r.pctAnt)?r.pctAnt.toFixed(1):''])];
 
 /* ===================== SLIDES ===================== */
 let NUM=0, VERSAO='';
@@ -499,32 +500,55 @@ function msgGrafico(nv, val, ref){
   return `No gráfico, <b>${g.length}</b> ${g.length===1?nv.um.replace(/^(região|bacia)$/, '$1'):(nv.ch==='bioma'?'biomas':nv.ch==='estado'?'UFs':nv.ch==='hidro'?'regiões':'bacias')} ficaram acima da média (<span class="dest">${haTxt(sg)}</span>) e <b>${p.length}</b> abaixo (<span class="dneg">${haTxt(sp)}</span>), saldo de <b>${haTxt(sg+sp)}</b>. Em relação a ${nomeMesAnt(ref)}, <b>${subiram} de ${val.length}</b> tiveram aumento de superfície de água.`;
 }
 
+/** Caixa do mês anterior: maior aumento e maior redução em hectares */
+function caixaMesAnt(ordAnt, mAnt){
+  const up = ordAnt.find(r=>r.dif>0), dn = ordAnt.slice().reverse().find(r=>r.dif<0);
+  if(!up && !dn) return '';
+  return `<div class="caixa" style="font-size:12.5px;border-style:dashed"><span style="font-size:10px;letter-spacing:.05em;color:#777">EM RELAÇÃO A ${mAnt.toUpperCase()}</span><br>`
+    + (up ? `Maior aumento: <b class="dest">${esc(up.name)}</b> <b>${haTxt(up.dif)}</b> (${pctS(up.dev)})<br>` : 'Nenhum território aumentou.<br>')
+    + (dn ? `Maior redução: <b class="dneg">${esc(dn.name)}</b> <b>${haTxt(dn.dif)}</b> (${pctS(dn.dev)})` : 'Nenhum território diminuiu.') + `</div>`;
+}
+
 function slideNivelMapa(nv, tab, ref, geo, opts={}){
   if(!DADOS[nv.ch]) return slide(`${nv.rot}`, `<div class="caixa">Planilha <code>${nv.arq}</code> ainda não publicada em dados/.</div>`);
-  const ano=Math.floor(ref/100), {mesL, val, abaixo, pAbaixo, ex} = resumoNivel(nv, tab, ref);
+  const ano=Math.floor(ref/100), {mesL, val, abaixo, pAbaixo} = resumoNivel(nv, tab, ref);
+  const mAnt = nomeMesAnt(ref);
   const ord = val.slice().sort((a,b)=>b.dif-a.dif);
-  // com topN: até N maiores ganhos (acima da média) e até N maiores perdas (abaixo da média)
+  // gráfico principal: diferença absoluta vs média (com topN: até N ganhos e até N perdas)
   const gan = ord.filter(r=>r.dif>0), per = ord.filter(r=>r.dif<0);
   const corta = opts.topN && ord.length > 2*opts.topN;
   const barras = corta ? [...gan.slice(0,opts.topN), ...per.slice(-opts.topN)] : ord;
   const tituloBarras = corta ? `${Math.min(opts.topN,gan.length)} maiores ganhos e ${Math.min(opts.topN,per.length)} ${per.length>opts.topN?'maiores perdas':(per.length===1?'perda':'perdas')} em relação à média histórica` : 'Variação absoluta em relação à média histórica';
-  const g = ex.GANHO, p = ex.PERDA;
-  const caixaTxt = (r, ganho) => r ? `<b class="${ganho?'dest':'dneg'}">${esc(r.name)}</b> ${ganho?(r.dev>=0?'teve o maior ganho':'teve a menor perda'):'teve a maior perda'} em relação à média histórica: <b>${haTxt(r.dif)}</b> (${pctS(r.dev)}).<br><span style="font-size:12px">${r.frase[0].toUpperCase()+r.frase.slice(1)} · <b>${nf(r.rankHist)}º de ${r.nHist}</b> no ranking histórico · vs ${nomeMesAnt(ref)}: <b class="${r.pctAnt>=0?'dest':'dneg'}">${pctS(r.pctAnt)}</b></span>` : '';
+  // gráfico 2: diferença absoluta vs mês anterior
+  const nAnt = barras.length > 14 ? 5 : barras.length > 8 ? 4 : 99;
+  const ordAnt = val.filter(r=>Number.isFinite(r.difAnt)).map(r=>({...r, dif:r.difAnt, dev:r.pctAnt})).sort((a,b)=>b.dif-a.dif);
+  const barrasAnt = ordAnt.length > 2*nAnt ? [...ordAnt.filter(r=>r.dif>0).slice(0,nAnt), ...ordAnt.filter(r=>r.dif<0).slice(-nAnt)] : ordAnt;
+  const tituloAnt = ordAnt.length > 2*nAnt ? `${nAnt} maiores aumentos e reduções em relação a ${mAnt}` : `Variação absoluta em relação a ${mAnt}`;
+  // destaques: absolutos (ha) e relativos (%)
+  const absG = gan[0], absP = per[per.length-1];
+  const relOrd = val.slice().sort((a,b)=>b.dev-a.dev), relG = relOrd.find(r=>r.dev>0), relP = relOrd.slice().reverse().find(r=>r.dev<0);
+  const linhaRank = r => `${r.frase[0].toUpperCase()+r.frase.slice(1)} · <b>${nf(r.rankHist)}º de ${r.nHist}</b> no ranking histórico · vs ${mAnt}: <b class="${r.difAnt>=0?'dest':'dneg'}">${haTxt(r.difAnt)}</b>`;
+  const caixaAbs = (r, ganho) => r ? `<div class="caixa" style="font-size:13px"><span style="font-size:10px;letter-spacing:.05em;color:#777">${ganho?'MAIOR GANHO ABSOLUTO':'MAIOR PERDA ABSOLUTA'}</span><br><b class="${ganho?'dest':'dneg'}" style="font-size:16px">${esc(r.name)}</b>: <b style="font-size:16px">${haTxt(r.dif)}</b> em relação à média histórica de ${mesL} (${nf(r.agua)} ha vs ${nf(r.media)} ha)<br><span style="font-size:11.5px">${linhaRank(r)}</span></div>`
+                                      : `<div class="caixa" style="font-size:13px">Nenhum território ficou ${ganho?'acima':'abaixo'} da média histórica.</div>`;
+  const caixaRel = (r, ganho) => r ? `<div class="msg" style="border-left-color:${ganho?'#2b6cc4':'#8b1e1e'}"><b>${ganho?'Maior ganho relativo':'Maior perda relativa'}:</b> <b class="${ganho?'dest':'dneg'}">${esc(r.name)}</b>, <b>${pctS(r.dev)}</b> (${haTxt(r.dif)})</div>` : '';
   return slide(`Superfície de água ${opts.titulo||('n'+(nv.ch==='bioma'?'os':'as')+' '+nv.rot.toLowerCase())} em ${mesL} de ${ano}`, `
     <div class="col">
-      ${graf(`${opts.tituloMapa||('Desvio da superfície de água por '+nv.um)} em ${mesL} de ${ano} em relação à média histórica`, svgMapa(geo, tab, {W:520,H:470,rotulos:opts.rotulos||'nenhum',destaque:new Set([g?.code,p?.code].filter(Boolean))}), csvLinhas(val), `${opts.n}_mapa_${slug(nv.rot)}`)}
+      ${graf(`${opts.tituloMapa||('Desvio da superfície de água por '+nv.um)} em ${mesL} de ${ano} em relação à média histórica (%)`, svgMapa(geo, tab, {W:520,H:430,rotulos:opts.rotulos||'nenhum',destaque:new Set([relG?.code,relP?.code].filter(Boolean))}), csvLinhas(val), `${opts.n}_mapa_${slug(nv.rot)}`)}
+      ${caixaRel(relG, true)}${caixaRel(relP, false)}
       <div class="msg">${msgMapa(nv, val)}</div>
     </div>
     <div class="col">
-      ${graf(tituloBarras, svgBarras(barras, {lh: barras.length>20?16:barras.length>12?20:30}), csvLinhas(barras), `${opts.n2}_ranking_${slug(nv.rot)}`)}
+      ${graf(tituloBarras, svgBarras(barras, {lh: barras.length>20?14:barras.length>12?17:24}), csvLinhas(barras), `${opts.n2}_ranking_${slug(nv.rot)}`)}
+      ${graf(tituloAnt, svgBarras(barrasAnt, {lh: barrasAnt.length>8?15:20, rotX:`Diferença absoluta vs ${mAnt}`}), csvLinhas(barrasAnt), `${opts.n2}b_mes_anterior_${slug(nv.rot)}`)}
       <div class="msg">${msgGrafico(nv, val, ref)}</div>
     </div>
-    <div style="display:flex;flex-direction:column;gap:12px">
+    <div style="display:flex;flex-direction:column;gap:10px">
       <div class="callout">${anel(pAbaixo)}</div>
-      <div class="txt" style="margin-top:-8px;font-size:14px">${nv.das} <span class="dest">(${abaixo.length} de ${val.length})</span> estiveram com superfície de água <span class="dneg">abaixo da média histórica</span> de ${mesL}</div>
-      <div class="caixa" style="font-size:13px">${caixaTxt(g, true)}</div>
-      <div class="caixa" style="font-size:13px">${caixaTxt(p, false)}</div>
-    </div>`, 'grid-template-columns:1.02fr 1.15fr .8fr');
+      <div class="txt" style="margin-top:-8px;font-size:13.5px">${nv.das} <span class="dest">(${abaixo.length} de ${val.length})</span> estiveram com superfície de água <span class="dneg">abaixo da média histórica</span> de ${mesL}</div>
+      ${caixaAbs(absG, true)}
+      ${caixaAbs(absP, false)}
+      ${caixaMesAnt(ordAnt, mAnt)}
+    </div>`, 'grid-template-columns:1fr 1.15fr .82fr');
 }
 
 function slideBiomasMensal(R, ref){
@@ -604,7 +628,7 @@ function slideRankingHistorico(R, ref){
 }
 
 /* ===================== MONTAGEM ===================== */
-let DADOS=null, GEO={}; const FALTANDO=[];
+let DADOS=null, GEO={}; const FALTANDO=[]; let AVISO_REPETIDO='';
 function montar(ref){
   NUM=0; CONT=0; MAPA_CASADOS.length=0;
   const mes=ref%100, ano=Math.floor(ref/100);
@@ -630,8 +654,9 @@ function montar(ref){
   document.getElementById('folhas').innerHTML = html;
   window.__BOLETIM__ = {ref, brasil:b, mediaHist, extremos:Object.fromEntries(NIVEIS.map(nv=>[nv.ch, extremos(R.tabs[nv.ch])])), tabelas:R.tabs, mapasCasados:[...MAPA_CASADOS]};
   document.getElementById('dump').textContent = JSON.stringify(window.__BOLETIM__);
-  document.getElementById('status').innerHTML = `Último mês com dados: ${String(mes).padStart(2,'0')}/${ano}`
-    + (FALTANDO.length ? ` · <span class="erro">faltando em dados/: ${FALTANDO.join(', ')}</span>` : '');
+  document.getElementById('status').innerHTML = `Boletim de: ${String(mes).padStart(2,'0')}/${ano}`
+    + (FALTANDO.length ? ` · <span class="erro">faltando em dados/: ${FALTANDO.join(', ')}</span>` : '')
+    + (AVISO_REPETIDO ? ` · <span class="erro">⚠ ${AVISO_REPETIDO}</span>` : '');
 }
 
 async function iniciar(){
@@ -653,8 +678,13 @@ async function iniciar(){
     const yms = [...serieBrasil(DADOS.bioma).keys()].sort((a,b)=>b-a);
     const sel = document.getElementById('selMes');
     sel.innerHTML = yms.slice(0,36).map(ym=>`<option value="${ym}">${String(ym%100).padStart(2,'0')}/${Math.floor(ym/100)}</option>`).join('');
+    // último mês que só repete o anterior (ex.: dez = nov) não é dado novo: abre no mês anterior e avisa
+    AVISO_REPETIDO = '';
+    const repetidos = [...DADOS.bioma.values()].filter(t=>{ const a=t.serie.get(yms[0]), b=t.serie.get(mesAnterior(yms[0])); return a!==undefined && b!==undefined && Math.abs(a-b) < 5; }).length;
+    const padrao = (repetidos >= DADOS.bioma.size/2 && yms.length>1) ? yms[1] : yms[0];
+    if(padrao !== yms[0]) AVISO_REPETIDO = `${String(yms[0]%100).padStart(2,'0')}/${Math.floor(yms[0]/100)} repete os valores de ${String(yms[1]%100).padStart(2,'0')}/${Math.floor(yms[1]/100)} em ${repetidos} de ${DADOS.bioma.size} biomas — boletim aberto no mês anterior`;
     const pedido = +(Q.get('mes')||'').replace('-','');
-    const ref = yms.includes(pedido) ? pedido : yms[0];
+    const ref = yms.includes(pedido) ? pedido : padrao;
     sel.value = ref; sel.onchange = ()=>montar(+sel.value);
     montar(ref);
     document.getElementById('btnCsvTudo').onclick = ()=>{

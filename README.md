@@ -37,6 +37,8 @@ colab/exportar_contornos_boletim.ipynb   gera a pasta geo/ a partir dos assets d
 2. Publique (commit no repositório com GitHub Pages ligado).
 3. Abra a página → **Exportar PDF**.
 
+> Se o último mês da planilha só repetir o mês anterior (ex.: dezembro = novembro na maioria dos biomas), a página abre no mês anterior e mostra um aviso no topo. O mês repetido continua disponível no seletor.
+
 ## Slides
 
 | | Conteúdo |
@@ -50,7 +52,7 @@ colab/exportar_contornos_boletim.ipynb   gera a pasta geo/ a partir dos assets d
 | 7 | Bacias nível 1 (PNRH): mapa, 10 maiores ganhos e 10 maiores perdas, anel e caixas |
 | 8 | Ranking histórico do Brasil: posição do mês entre todos os meses da série e os 20 meses de maior perda e de maior ganho |
 
-Os slides de Biomas, UFs, Regiões hidrográficas e Bacias trazem uma mensagem sob o mapa (onde estão as maiores perdas e ganhos) e sob o gráfico (quantos ficaram acima/abaixo da média, saldo e comparação com o mês anterior); as caixas de destaque também mostram a variação em relação ao mês anterior.
+Nos slides de Biomas, UFs, Regiões hidrográficas e Bacias, as caixas da direita destacam o **maior ganho e a maior perda absolutos (ha)** e o maior aumento/redução em relação ao mês anterior; ao lado do mapa ficam os destaques **relativos (%)**. Há também uma mensagem sob o mapa (onde estão as maiores perdas e ganhos) e sob o gráfico (quantos ficaram acima/abaixo da média, saldo e comparação com o mês anterior); as caixas de destaque também mostram a variação em relação ao mês anterior.
 
 Cada gráfico e mapa tem botões **PNG** (fundo transparente, 4× a tela) e **CSV**. **Baixar dados (CSV)** traz
 todos os territórios. As contas são as mesmas do Colab `boletim_agua_mensal.ipynb`.
