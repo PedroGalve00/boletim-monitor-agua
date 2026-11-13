@@ -48,7 +48,9 @@
   .callout{display:flex;align-items:center;gap:12px}
   .anel{display:flex;align-items:center;gap:8px}
   .anel .p{font-size:30px;font-weight:700;color:var(--azul-esc)}
-  .tit-graf{font-size:14px;font-weight:700;text-align:center;margin-bottom:2px}
+  .tit-graf{font-size:14px;font-weight:700;text-align:center;margin-bottom:4px}
+  .msg{font-size:12.5px;line-height:1.35;background:#f4f8fd;border-left:4px solid #4a8fdb;border-radius:6px;padding:7px 10px;margin-top:6px}
+  .col{display:flex;flex-direction:column;min-height:0;gap:6px}
   .bloco{position:relative;display:flex;flex-direction:column;min-height:0}
   .bloco svg{width:100%;height:100%;min-height:0;flex:1}
   .acoes{position:absolute;top:0;right:0;display:flex;gap:4px}
@@ -97,6 +99,7 @@ const Q = new URLSearchParams(location.search);
 const DADOS_BASE = Q.get('dados') || './dados/';
 const GEO_BASE = Q.get('geo') || './geo/';
 const LOGO = 'img/logo_mapbiomas_agua.png';
+const ANO_INICIO = +(Q.get('inicio') || 2019);   // série histórica considerada a partir deste ano
 const NIVEIS = [
   {ch:'bioma',     arq:'biome-water_surface_monthly_v3.csv',              rot:'Biomas',               sing:'Bioma',               art:'os biomas', das:'dos biomas',  um:'bioma'},
   {ch:'estado',    arq:'state-water_surface_monthly_v3.csv',              rot:'Estados',              sing:'Estado',              art:'as UFs', das:'das UFs',     um:'UF'},
@@ -157,7 +160,7 @@ function lerNivel(txt, arq){
     const L = rows[r]; const nome = (L[ix.name]||'').trim();
     if(EXCLUIR.has(nome)) continue;
     const a = parseArea(L[ix.area]); const y = parseInt(L[ix.year]); const m = parseInt(L[ix.month]);
-    if(!Number.isFinite(a) || !(m>=1 && m<=12) || !Number.isFinite(y)) continue;
+    if(!Number.isFinite(a) || !(m>=1 && m<=12) || !Number.isFinite(y) || y < ANO_INICIO) continue;
     const c = normCode(L[ix.code]); const ym = y*100+m;
     if(!T.has(c)) T.set(c, {code:c, name:nome, serie:new Map()});
     const t = T.get(c); t.name = nome; t.serie.set(ym, (t.serie.get(ym)||0) + a);
@@ -166,6 +169,8 @@ function lerNivel(txt, arq){
 }
 
 /* ===================== CÁLCULOS (porta direta do Colab) ===================== */
+const mesAnterior = ref => ref%100===1 ? (Math.floor(ref/100)-1)*100+12 : ref-1;
+const nomeMesAnt = ref => { const a=mesAnterior(ref); return `${MESES[a%100-1].toLowerCase()} de ${Math.floor(a/100)}`; };
 function rankMin(vals, v){ let k=1; for(const x of vals) if(x>v) k++; return k; }
 function metricas(serie, ref){
   const mes = ref%100;
@@ -174,9 +179,11 @@ function metricas(serie, ref){
   const media = {}; for(const k in porMes){ media[k] = porMes[k].reduce((a,b)=>a+b,0)/porMes[k].length; }
   const devs = pts.map(([ym,v])=> media[ym%100]>0 ? (v-media[ym%100])/media[ym%100]*100 : NaN).filter(Number.isFinite);
   const agua = serie.get(ref);
-  if(agua===undefined) return {agua:NaN, media:media[mes]??NaN, dif:NaN, dev:NaN, rankHist:NaN, nHist:devs.length, posMes:NaN, nMes:(porMes[mes]||[]).length};
+  const vAnt = serie.get(mesAnterior(ref));
+  if(agua===undefined) return {agua:NaN, media:media[mes]??NaN, dif:NaN, dev:NaN, rankHist:NaN, nHist:devs.length, posMes:NaN, nMes:(porMes[mes]||[]).length, aguaAnt:vAnt??NaN, difAnt:NaN, pctAnt:NaN};
   const m = media[mes]; const dev = m>0 ? (agua-m)/m*100 : NaN;
   return {agua, media:m, dif:agua-m, dev,
+          aguaAnt: vAnt??NaN, difAnt: vAnt!==undefined ? agua-vAnt : NaN, pctAnt: vAnt>0 ? (agua-vAnt)/vAnt*100 : NaN,
           rankHist: Number.isFinite(dev) ? rankMin(devs, dev) : NaN, nHist: devs.length,
           posMes: rankMin(porMes[mes], agua), nMes: porMes[mes].length};
 }
@@ -402,6 +409,7 @@ function baixarPNG(id){
 let CONT=0;
 function graf(titulo, svg, csv, nome){
   const id='g'+(++CONT); GRAF[id]={svg, csv, nome};
+  svg = svg.replace('<svg ', '<svg preserveAspectRatio="xMidYMin meet" ');   // desenho logo abaixo do título
   return `<div class="bloco"><div class="tit-graf">${titulo}</div><span class="acoes"><button onclick="baixarPNG('${id}')">PNG</button><button onclick="baixarCSV('${id}')">CSV</button></span>${svg}</div>`;
 }
 const csvLinhas = rows => [['codigo','nome','agua_mes_ha','media_mes_ha','dif_ha','desvio_pct','rank_historico','n_meses_historico','posicao_no_mes','n_anos_mes','frase_posicao'],
@@ -413,7 +421,7 @@ function slide(titulo, corpoHTML, estiloCorpo=''){
   NUM++;
   return `<section class="slide"><div class="hd"><img src="${LOGO}" alt="MapBiomas Água"><h2>${titulo}</h2><div class="num">${NUM}</div></div><div class="barra"></div>
     <div class="corpo" style="${estiloCorpo}">${corpoHTML}</div>
-    <div class="rodape"><span>Fonte: MapBiomas Água — superfície de água mensal (v3). Desvio = água do mês vs média do mesmo mês na série histórica.</span><i>versão ${VERSAO}</i></div></section>`;
+    <div class="rodape"><span>Fonte: MapBiomas Água — superfície de água mensal (v3), série a partir de ${ANO_INICIO}. Desvio = água do mês vs média do mesmo mês na série.</span><i>versão ${VERSAO}</i></div></section>`;
 }
 
 function slideCapa(ref){
@@ -425,7 +433,7 @@ function slideCapa(ref){
     <div class="bola" style="width:150px;height:150px;right:470px;bottom:110px;background:#a9cdf3;opacity:.8"></div>
     <img src="${LOGO}" style="height:78px;width:auto;align-self:flex-start;margin-bottom:60px" alt="MapBiomas Água">
     <h1>Superfície de água no Brasil em ${mes.toLowerCase()} de ${ano}</h1>
-    <div class="sub">Boletim mensal do Monitor da Água</div>
+    <div class="sub">Boletim mensal do Monitor da Água · série desde ${ANO_INICIO}</div>
     <div style="height:6px;width:460px;margin:34px 0 18px;background:linear-gradient(90deg,#3d7fd4 0 30%,#8bb9ec 30% 55%,#4a8fdb 55% 78%,#a9cdf3 78%)"></div>
     <i style="color:#666;font-size:14px">${VERSAO}</i></section>`;
 }
@@ -434,20 +442,27 @@ function slideBrasil(R, ref){
   const mes=ref%100, ano=Math.floor(ref/100), mesL=MESES[mes-1].toLowerCase(), b=R.brasil, ant=R.anoAnterior;
   const csv1 = [['ano','mes','agua_ha'], ...[...R.sBR.entries()].filter(([ym])=>ym<=ref).sort((a,c)=>a[0]-c[0]).map(([ym,v])=>[Math.floor(ym/100), ym%100, Math.round(v)])];
   const csv2 = [['ano','agua_mes_ha','media_mesmo_mes_ha'], ...R.serieAno.map(d=>[d.ano, Math.round(d.v), Math.round(b.media)])];
+  // mensagem do gráfico de linhas: meses do ano acima/abaixo da média
+  let acima=0, nm=0; const abaixoNomes=[];
+  for(let mm=1; mm<=mes; mm++){ const mt=metricas(R.sBR, ano*100+mm); if(Number.isFinite(mt.dev)){ nm++; if(mt.dev>=0) acima++; else abaixoNomes.push(MES3[mm-1].toLowerCase()); } }
+  const extremoAno = R.serieAno.reduce((x,y)=>y.v>x.v?y:x), minimoAno = R.serieAno.reduce((x,y)=>y.v<x.v?y:x);
   return slide(`Superfície de água no Brasil em ${mesL} de ${ano}`, `
-    <div style="display:grid;grid-template-columns:1.05fr 1fr 1fr;gap:22px;align-items:center">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:16px;align-items:center">
       <div class="txt">Em <span class="dest">${mesL} de ${ano}</span>, o Brasil apresentou uma superfície de água de<div class="grande" style="margin-top:6px">${mha(b.agua)}</div></div>
-      <div class="callout">${triangulo(b.dev)}<div class="txt">${acimaAbaixo(b.dev)} de ${mesL} (<b>${mha(b.media)}</b>, ${R.anoIni}–${ano})</div></div>
-      <div class="callout">${triangulo(ant.pct)}<div class="txt">${ant.pct>=0?'<span class="dest">acima</span>':'<span class="dneg">abaixo</span>'} de ${mesL} de ${ano-1}, que teve <b>${mha(ant.v)}</b></div></div>
+      <div class="callout">${triangulo(b.dev,76)}<div class="txt" style="font-size:13.5px">${acimaAbaixo(b.dev)} de ${mesL} (<b>${mha(b.media)}</b>, ${R.anoIni}–${ano})</div></div>
+      <div class="callout">${triangulo(b.pctAnt,76)}<div class="txt" style="font-size:13.5px">${b.pctAnt>=0?'<span class="dest">acima</span>':'<span class="dneg">abaixo</span>'} de <b>${nomeMesAnt(ref)}</b> (mês anterior), que teve <b>${mha(b.aguaAnt)}</b></div></div>
+      <div class="callout">${triangulo(ant.pct,76)}<div class="txt" style="font-size:13.5px">${ant.pct>=0?'<span class="dest">acima</span>':'<span class="dneg">abaixo</span>'} de ${mesL} de ${ano-1}, que teve <b>${mha(ant.v)}</b></div></div>
     </div>
     <div style="display:grid;grid-template-columns:1.15fr 1fr;gap:26px;min-height:0">
-      ${graf(`Superfície de água mensal no Brasil (${R.anoIni} - ${ano})`, svgLinhasMensais(R.sBR, ref, {W:640,H:380,unid:1e6,rot:'Superfície de água (Mha)',dec:1,legenda:true}), csv1, '01_brasil_superficie_mensal_por_ano')}
-      ${graf(`Superfície de água em ${mesL}, por ano (${R.anoIni} - ${ano})`, svgSerieMes(R.serieAno, ano, b.media, {W:560,H:380}), csv2, `02_brasil_${slug(mesL)}_por_ano`)}
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:26px">
-      <div class="caixa"><span class="big">${b.frase[0].toUpperCase()+b.frase.slice(1)}</span><br>Rank histórico: ${nf(b.rankHist)}º de ${b.nHist} meses da série (1 = maior ganho vs a média do mês)</div>
-      <div class="caixa">Em relação à <b>média de todos os meses</b> da série (${mha(R.mediaHist)}), ${mesL} de ${ano} ficou <span class="${R.devHist>=0?'dest':'dneg'}">${pctS(R.devHist)}</span> — essa comparação também reflete a sazonalidade (cheia e seca).</div>
-    </div>`, 'grid-template-rows:auto 1fr auto');
+      <div class="col">
+        ${graf(`Superfície de água mensal no Brasil (${R.anoIni} - ${ano})`, svgLinhasMensais(R.sBR, ref, {W:640,H:360,unid:1e6,rot:'Superfície de água (Mha)',dec:1,legenda:true}), csv1, '01_brasil_superficie_mensal_por_ano')}
+        <div class="msg">Em ${ano}, a linha azul-escura ficou <b>acima da média</b> (laranja) em <b>${acima} de ${nm} meses</b>${abaixoNomes.length?`; abaixo em ${abaixoNomes.join(', ')}`:''}. De ${nomeMesAnt(ref)} para ${mesL}, a superfície de água <b>${b.difAnt>=0?'aumentou':'diminuiu'} ${haTxt(Math.abs(b.difAnt),false)}</b> (${pctS(b.pctAnt)}).</div>
+      </div>
+      <div class="col">
+        ${graf(`Superfície de água em ${mesL}, por ano (${R.anoIni} - ${ano})`, svgSerieMes(R.serieAno, ano, b.media, {W:560,H:360}), csv2, `02_brasil_${slug(mesL)}_por_ano`)}
+        <div class="msg"><b>${b.frase[0].toUpperCase()+b.frase.slice(1)}</b> (série desde ${R.anoIni}). O maior ${mesL} foi em <b>${extremoAno.ano}</b> (${mha(extremoAno.v)}) e o menor em <b>${minimoAno.ano}</b> (${mha(minimoAno.v)}). No ranking de todos os meses, ${mesL} de ${ano} é o <b>${nf(b.rankHist)}º de ${b.nHist}</b>.</div>
+      </div>
+    </div>`, 'grid-template-rows:auto 1fr');
 }
 
 function resumoNivel(nv, tab, ref){
@@ -457,22 +472,59 @@ function resumoNivel(nv, tab, ref){
   return {mesL, val, abaixo, pAbaixo: val.length ? abaixo.length/val.length*100 : NaN, ex};
 }
 
+const UF_REGIAO = {AC:'Norte',AP:'Norte',AM:'Norte',PA:'Norte',RO:'Norte',RR:'Norte',TO:'Norte',AL:'Nordeste',BA:'Nordeste',CE:'Nordeste',MA:'Nordeste',PB:'Nordeste',PE:'Nordeste',PI:'Nordeste',RN:'Nordeste',SE:'Nordeste',DF:'Centro-Oeste',GO:'Centro-Oeste',MT:'Centro-Oeste',MS:'Centro-Oeste',ES:'Sudeste',MG:'Sudeste',RJ:'Sudeste',SP:'Sudeste',PR:'Sul',RS:'Sul',SC:'Sul'};
+const lista = arr => arr.length<=1 ? arr.join('') : arr.slice(0,-1).join(', ')+' e '+arr[arr.length-1];
+
+/** Mensagem que descreve o mapa: onde estão os tons mais vermelhos e os mais azuis */
+function msgMapa(nv, val){
+  const fortesP = val.filter(r=>r.dev<=-20).sort((a,b)=>a.dev-b.dev), fortesG = val.filter(r=>r.dev>=20).sort((a,b)=>b.dev-a.dev);
+  const nomes = rs => lista(rs.slice(0,4).map(r=>`<b>${esc(r.name)}</b>`)) + (rs.length>4?` e outras ${rs.length-4}`:'');
+  const P = fortesP.length ? fortesP : val.filter(r=>r.dev<0).sort((a,b)=>a.dev-b.dev).slice(0,2);
+  const G = fortesG.length ? fortesG : val.filter(r=>r.dev>0).sort((a,b)=>b.dev-a.dev).slice(0,2);
+  let t = '';
+  if(P.length) t += `No mapa, os tons ${fortesP.length?'mais vermelhos (perda maior que 20%)':'avermelhados'} aparecem em ${nomes(P)}`;
+  if(G.length) t += `${t?'; os ':'No mapa, os '}tons ${fortesG.length?'mais azuis (ganho maior que 20%)':'azulados'} em ${nomes(G)}`;
+  if(nv.ch==='estado'){
+    const reg = {}; val.filter(r=>r.dev<0).forEach(r=>{ const g=UF_REGIAO[UF_SIGLA[r.name]]; if(g) reg[g]=(reg[g]||0)+1; });
+    const top = Object.entries(reg).sort((a,b)=>b[1]-a[1])[0];
+    if(top) t += `. As perdas se concentram no <b>${top[0]}</b> (${top[1]} UFs)`;
+  }
+  return (t || 'Todos os territórios ficaram próximos da média histórica') + '.';
+}
+/** Mensagem que descreve o gráfico de barras: quantos ganharam/perderam e o saldo */
+function msgGrafico(nv, val, ref){
+  const g = val.filter(r=>r.dif>0), p = val.filter(r=>r.dif<0);
+  const sg = g.reduce((a,r)=>a+r.dif,0), sp = p.reduce((a,r)=>a+r.dif,0);
+  const subiram = val.filter(r=>r.difAnt>0).length;
+  return `No gráfico, <b>${g.length}</b> ${g.length===1?nv.um.replace(/^(região|bacia)$/, '$1'):(nv.ch==='bioma'?'biomas':nv.ch==='estado'?'UFs':nv.ch==='hidro'?'regiões':'bacias')} ficaram acima da média (<span class="dest">${haTxt(sg)}</span>) e <b>${p.length}</b> abaixo (<span class="dneg">${haTxt(sp)}</span>), saldo de <b>${haTxt(sg+sp)}</b>. Em relação a ${nomeMesAnt(ref)}, <b>${subiram} de ${val.length}</b> tiveram aumento de superfície de água.`;
+}
+
 function slideNivelMapa(nv, tab, ref, geo, opts={}){
   if(!DADOS[nv.ch]) return slide(`${nv.rot}`, `<div class="caixa">Planilha <code>${nv.arq}</code> ainda não publicada em dados/.</div>`);
   const ano=Math.floor(ref/100), {mesL, val, abaixo, pAbaixo, ex} = resumoNivel(nv, tab, ref);
   const ord = val.slice().sort((a,b)=>b.dif-a.dif);
-  const barras = opts.topN && ord.length>2*opts.topN ? [...ord.slice(0,opts.topN), ...ord.slice(-opts.topN)] : ord;
+  // com topN: até N maiores ganhos (acima da média) e até N maiores perdas (abaixo da média)
+  const gan = ord.filter(r=>r.dif>0), per = ord.filter(r=>r.dif<0);
+  const corta = opts.topN && ord.length > 2*opts.topN;
+  const barras = corta ? [...gan.slice(0,opts.topN), ...per.slice(-opts.topN)] : ord;
+  const tituloBarras = corta ? `${Math.min(opts.topN,gan.length)} maiores ganhos e ${Math.min(opts.topN,per.length)} ${per.length>opts.topN?'maiores perdas':(per.length===1?'perda':'perdas')} em relação à média histórica` : 'Variação absoluta em relação à média histórica';
   const g = ex.GANHO, p = ex.PERDA;
-  const caixaTxt = (r, ganho) => r ? `<b class="${ganho?'dest':'dneg'}">${esc(r.name)}</b> ${ganho?(r.dev>=0?'teve o maior ganho':'teve a menor perda'):'teve a maior perda'} em relação à média histórica: <b>${haTxt(r.dif)}</b> (${pctS(r.dev)}).<br><span style="font-size:12.5px">${r.frase[0].toUpperCase()+r.frase.slice(1)} · <b>${nf(r.rankHist)}º de ${r.nHist}</b> meses no ranking histórico</span>` : '';
+  const caixaTxt = (r, ganho) => r ? `<b class="${ganho?'dest':'dneg'}">${esc(r.name)}</b> ${ganho?(r.dev>=0?'teve o maior ganho':'teve a menor perda'):'teve a maior perda'} em relação à média histórica: <b>${haTxt(r.dif)}</b> (${pctS(r.dev)}).<br><span style="font-size:12px">${r.frase[0].toUpperCase()+r.frase.slice(1)} · <b>${nf(r.rankHist)}º de ${r.nHist}</b> no ranking histórico · vs ${nomeMesAnt(ref)}: <b class="${r.pctAnt>=0?'dest':'dneg'}">${pctS(r.pctAnt)}</b></span>` : '';
   return slide(`Superfície de água ${opts.titulo||('n'+(nv.ch==='bioma'?'os':'as')+' '+nv.rot.toLowerCase())} em ${mesL} de ${ano}`, `
-    ${graf(`${opts.tituloMapa||('Desvio da superfície de água por '+nv.um)} em ${mesL} de ${ano} em relação à média histórica`, svgMapa(geo, tab, {W:520,H:540,rotulos:opts.rotulos||'nenhum',destaque:new Set([g?.code,p?.code].filter(Boolean))}), csvLinhas(val), `${opts.n}_mapa_${slug(nv.rot)}`)}
-    ${graf(`${opts.topN&&ord.length>2*opts.topN?`${opts.topN} maiores ganhos e ${opts.topN} maiores perdas`:'Ranking da variação absoluta'}`, svgBarras(barras, {lh: barras.length>20?18:24}), csvLinhas(barras), `${opts.n2}_ranking_${slug(nv.rot)}`)}
-    <div style="display:flex;flex-direction:column;gap:14px;justify-content:center">
+    <div class="col">
+      ${graf(`${opts.tituloMapa||('Desvio da superfície de água por '+nv.um)} em ${mesL} de ${ano} em relação à média histórica`, svgMapa(geo, tab, {W:520,H:470,rotulos:opts.rotulos||'nenhum',destaque:new Set([g?.code,p?.code].filter(Boolean))}), csvLinhas(val), `${opts.n}_mapa_${slug(nv.rot)}`)}
+      <div class="msg">${msgMapa(nv, val)}</div>
+    </div>
+    <div class="col">
+      ${graf(tituloBarras, svgBarras(barras, {lh: barras.length>20?16:barras.length>12?20:30}), csvLinhas(barras), `${opts.n2}_ranking_${slug(nv.rot)}`)}
+      <div class="msg">${msgGrafico(nv, val, ref)}</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">
       <div class="callout">${anel(pAbaixo)}</div>
-      <div class="txt" style="margin-top:-8px">${nv.das} <span class="dest">(${abaixo.length} de ${val.length})</span> estiveram com superfície de água <span class="dneg">abaixo da média histórica</span> de ${mesL}</div>
-      <div class="caixa">${caixaTxt(g, true)}</div>
-      <div class="caixa">${caixaTxt(p, false)}</div>
-    </div>`, 'grid-template-columns:1.02fr 1.15fr .78fr');
+      <div class="txt" style="margin-top:-8px;font-size:14px">${nv.das} <span class="dest">(${abaixo.length} de ${val.length})</span> estiveram com superfície de água <span class="dneg">abaixo da média histórica</span> de ${mesL}</div>
+      <div class="caixa" style="font-size:13px">${caixaTxt(g, true)}</div>
+      <div class="caixa" style="font-size:13px">${caixaTxt(p, false)}</div>
+    </div>`, 'grid-template-columns:1.02fr 1.15fr .8fr');
 }
 
 function slideBiomasMensal(R, ref){
