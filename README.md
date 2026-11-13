@@ -1,0 +1,59 @@
+# Boletim do Monitor da Água — MapBiomas Água
+
+**Página:** https://pedrogalve00.github.io/boletim-monitor-agua/
+
+Página única (`index.html`), no mesmo modelo do boletim do Monitor do Fogo: não tem build nem servidor.
+Ao abrir, ela baixa as planilhas mensais v3 e os contornos, acha sozinha o último mês com dados, faz as
+contas no navegador e monta o boletim em slides 16:9, no visual do factsheet do MapBiomas Água
+(Montserrat, logo no cabeçalho, número da página, barra azul). **Exportar PDF** usa a impressão do navegador.
+
+> **Pendente:** falta publicar `dados/hydrographicRegion-water_surface_monthly_v3.csv`. Enquanto ela não
+> estiver na pasta, o painel de Regiões hidrográficas mostra um aviso e o resto do boletim funciona normalmente.
+
+## Estrutura
+
+```
+index.html                          página do boletim
+img/logo_mapbiomas_agua.png         logo do cabeçalho (troque pelo arquivo oficial, se quiser)
+dados/                              planilhas mensais v3 (trocar todo mês)
+  biome-water_surface_monthly_v3.csv
+  state-water_surface_monthly_v3.csv
+  hydrographicRegion-water_surface_monthly_v3.csv
+  subBasinPnrh1-water_surface_monthly_v3.csv
+geo/                                contornos simplificados (gerar uma vez)
+  bioma.geojson  estado.geojson  hidro.geojson  subbacia1.geojson
+colab/exportar_contornos_boletim.ipynb   gera a pasta geo/ a partir dos assets do Earth Engine
+```
+
+## Uma vez: gerar os contornos
+
+1. Abra `colab/exportar_contornos_boletim.ipynb` no Colab → Executar tudo (projeto `pedrogalve`).
+2. Ele baixa `projects/mapbiomas-agua/assets/territories/{biome, state, hydrographicRegion, subBasinPnrh1}`,
+   simplifica, deixa só `code` e `name`, arredonda as coordenadas e salva em `Meu Drive/dados/geo/`.
+3. Para cada nível, ele diz quantos territórios casam com a planilha mensal (ex.: `27/27`) e o tamanho do arquivo.
+4. Copie a pasta `geo/` para o repositório.
+
+## Todo mês
+
+1. Substitua os 4 CSVs em `dados/` (mesmos nomes).
+2. Publique (commit no repositório com GitHub Pages ligado).
+3. Abra a página → **Exportar PDF**.
+
+## Slides
+
+| | Conteúdo |
+|---|---|
+| 1 | Capa |
+| 2 | Brasil (soma dos biomas): água do mês, triângulos vs média do mês e vs ano anterior, linhas mensais por ano (ano do boletim em azul-escuro, média em laranja), série do mês ao longo dos anos, posição no histórico |
+| 3 | Biomas: mapa do desvio, ranking da variação absoluta, anel com % abaixo da média, caixas do maior ganho e da maior perda |
+| 4 | Superfície de água mensal nos 6 biomas (estilo do factsheet) + destaques automáticos |
+| 5 | Estados: mapa com siglas, ranking das 27 UFs, anel e caixas |
+| 6 | Bacias: regiões hidrográficas e bacias nível 1 (mapa, anel, 3 maiores perdas) |
+
+Cada gráfico e mapa tem botões **PNG** (fundo transparente, 4× a tela) e **CSV**. **Baixar dados (CSV)** traz
+todos os territórios. As contas são as mesmas do Colab `boletim_agua_mensal.ipynb`.
+
+## Endereços úteis
+
+- `index.html?mes=2025-06` → um mês específico (também no seletor do topo)
+- `index.html?dados=https://.../&geo=https://.../` → ler de outras pastas públicas
