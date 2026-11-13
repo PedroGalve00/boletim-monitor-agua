@@ -7,8 +7,6 @@ Ao abrir, ela baixa as planilhas mensais v3 e os contornos, acha sozinha o últi
 contas no navegador e monta o boletim em slides 16:9, no visual do factsheet do MapBiomas Água
 (Montserrat, logo no cabeçalho, número da página, barra azul). **Exportar PDF** usa a impressão do navegador.
 
-> **Pendente:** falta publicar `dados/hydrographicRegion-water_surface_monthly_v3.csv`. Enquanto ela não
-> estiver na pasta, o painel de Regiões hidrográficas mostra um aviso e o resto do boletim funciona normalmente.
 
 ## Estrutura
 
