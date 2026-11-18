@@ -68,4 +68,5 @@ todos os territórios. As contas são as mesmas do Colab `boletim_agua_mensal.ip
   (`projects/mapbiomas-territories/assets/TERRITORIES-STAGING/BRAZIL/WORKSPACE/DHN250_LEVEL_1/DHN250_LEVEL_1_v2` e
   `.../DHN250_LEVEL_2/DHN250_LEVEL_2_v3`); o `code` de cada contorno é o `feature_id` das planilhas.
 - O mapa liga contorno e planilha **pelo nome** primeiro e depois pelo código (o `feature_id` dos estados não é o código IBGE).
+- Na planilha de estados, a linha "sem feição" (`feature_id` 0) é o Rio Grande do Sul; a página a renomeia (código 43). Nas planilhas de bacias, "sem feição" continua de fora.
 - Nomes com acento quebrado na planilha (ex.: `Amap\ufffd`) são corrigidos pelo nome do contorno.

@@ -163,8 +163,11 @@ function lerNivel(txt, arq, nomesGeo){
   if(falta.length) throw new Error(`${arq}: não achei as colunas ${falta.join(', ')}. Colunas: ${cab.join(', ')}`);
   const T = new Map();
   for(let r=1;r<rows.length;r++){
-    const L = rows[r]; const nome = consertarNome((L[ix.name]||'').trim().replace(/^\[|\]$/g,'').trim(), nomesGeo);
-    if(EXCLUIR.has(nome) || /^sem fei/i.test(nome) || normCode(L[ix.code])==='0') continue;
+    const L = rows[r]; let nome = consertarNome((L[ix.name]||'').trim().replace(/^\[|\]$/g,'').trim(), nomesGeo);
+    // Na planilha de estados, o RS veio como "sem feição" (feature_id 0)
+    const rsSemFeicao = /estado/i.test(arq) && (/^sem fei/i.test(nome) || normCode(L[ix.code])==='0');
+    if(rsSemFeicao){ nome = 'Rio Grande do Sul'; L[ix.code] = '43'; }
+    else if(EXCLUIR.has(nome) || /^sem fei/i.test(nome) || normCode(L[ix.code])==='0') continue;
     const a = parseArea(L[ix.area]); const y = parseInt(L[ix.year]); const m = parseInt(L[ix.month]);
     if(!Number.isFinite(a) || !(m>=1 && m<=12) || !Number.isFinite(y) || y < ANO_INICIO) continue;
     const c = normCode(L[ix.code]); const ym = y*100+m;
