@@ -16,20 +16,27 @@ img/logo_mapbiomas_agua.png         logo do cabeçalho (troque pelo arquivo ofic
 dados/                              estatísticas mensais do Monitor (trocar todo mês)
   stats_bioma_v3.csv
   stats_estado_v3.csv
-  stats_bacia_n1_v3.csv            regiões hidrográficas (DHN250 nível 1)
-  stats_bacia_n2_v3.csv            sub-bacias nível 1 (DHN250 nível 2)
+  stats_bacia_n1_v3.csv            bacias hidrográficas nível 1 (DHN250 nível 1)
+  stats_bacia_n2_v3.csv            bacias hidrográficas nível 2 (DHN250 nível 2)
 geo/                                contornos simplificados (gerar uma vez)
-  bioma.geojson  estado.geojson  hidro.geojson  subbacia1.geojson
-colab/exportar_contornos_boletim.ipynb   gera a pasta geo/ a partir dos assets do Earth Engine
+  bioma.geojson  estado.geojson  bacia_n1.geojson  bacia_n2.geojson
+gee/exportar_contornos_boletim.js   script do Earth Engine que exporta os contornos
 ```
 
 ## Uma vez: gerar os contornos
 
-1. Abra `colab/exportar_contornos_boletim.ipynb` no Colab → Executar tudo (projeto `pedrogalve`).
-2. Ele baixa `projects/mapbiomas-agua/assets/territories/{biome, state, hydrographicRegion, subBasinPnrh1}`,
-   simplifica, deixa só `code` e `name`, arredonda as coordenadas e salva em `Meu Drive/dados/geo/`.
-3. Para cada nível, ele diz quantos territórios casam com a planilha mensal (ex.: `27/27`) e o tamanho do arquivo.
-4. Copie a pasta `geo/` para o repositório.
+Os contornos vêm dos **mesmos assets usados nas estatísticas** do Monitor:
+
+| Arquivo | Asset | Código / nome |
+|---|---|---|
+| `bioma.geojson` | `projects/mapbiomas-territories/assets/TERRITORIES/BRAZIL/WORKSPACE/BIOMES/BIOMES_v4` | `FEATURE_ID` / `NAME` |
+| `estado.geojson` | `projects/mapbiomas-territories/assets/PLATFORM/demo/mapbiomas/brazil/territories/ESTADOS_IBGE_2025_F7EAF953/3f95fd9d-4b26-4243-8612-37b9d5b12a55` | `FEATURE_ID` / `NM_UF` |
+| `bacia_n1.geojson` | `projects/mapbiomas-territories/assets/TERRITORIES-STAGING/BRAZIL/WORKSPACE/DHN250_LEVEL_1/DHN250_LEVEL_1_v2` | `FEATURE_ID` / `NAME` |
+| `bacia_n2.geojson` | `projects/mapbiomas-territories/assets/TERRITORIES-STAGING/BRAZIL/WORKSPACE/DHN250_LEVEL_2/DHN250_LEVEL_2_v3` | `FEATURE_ID` / `NAME` |
+
+1. Rode `gee/exportar_contornos_boletim.js` no Code Editor e as 4 tarefas (Drive → `boletim_contornos`).
+2. Limpe os arquivos (só polígonos, simplificação 0,005°, 4 casas decimais) e confira se `code` e `name` batem com as planilhas.
+3. Coloque os 4 arquivos em `geo/`.
 
 ## Todo mês
 
@@ -48,11 +55,11 @@ colab/exportar_contornos_boletim.ipynb   gera a pasta geo/ a partir dos assets d
 | 3 | Biomas: mapa do desvio, ranking da variação absoluta, anel com % abaixo da média, caixas do maior ganho e da maior perda (com posição no mês e no ranking histórico) |
 | 4 | Superfície de água mensal nos 6 biomas + destaques automáticos |
 | 5 | UFs: mapa com siglas, ranking das 27 UFs, anel e caixas |
-| 6 | Regiões hidrográficas: mapa, ranking de ganhos e perdas, anel e caixas |
-| 7 | Bacias nível 1 (PNRH): mapa, 10 maiores ganhos e 10 maiores perdas, anel e caixas |
+| 6 | Bacias hidrográficas nível 1 (DHN250): mapa, ranking de ganhos e perdas, anel e caixas |
+| 7 | Bacias hidrográficas nível 2 (DHN250): mapa, 10 maiores ganhos e 10 maiores perdas, anel e caixas |
 | 8 | Ranking histórico do Brasil: posição do mês entre todos os meses da série e os 20 meses de maior perda e de maior ganho |
 
-Nos slides de Biomas, UFs, Regiões hidrográficas e Bacias, as caixas da direita destacam o **maior ganho e a maior perda absolutos (ha)** e o maior aumento/redução em relação ao mês anterior; ao lado do mapa ficam os destaques **relativos (%)**. Há também uma mensagem sob o mapa (onde estão as maiores perdas e ganhos) e sob o gráfico (quantos ficaram acima/abaixo da média, saldo e comparação com o mês anterior); as caixas de destaque também mostram a variação em relação ao mês anterior.
+Nos slides de Biomas, UFs e Bacias hidrográficas nível 1 e 2, as caixas da direita destacam o **maior ganho e a maior perda absolutos (ha)** e o maior aumento/redução em relação ao mês anterior; ao lado do mapa ficam os destaques **relativos (%)**. Há também uma mensagem sob o mapa (onde estão as maiores perdas e ganhos) e sob o gráfico (quantos ficaram acima/abaixo da média, saldo e comparação com o mês anterior); as caixas de destaque também mostram a variação em relação ao mês anterior.
 
 Cada gráfico e mapa tem botões **PNG** (fundo transparente, 4× a tela) e **CSV**. **Baixar dados (CSV)** traz
 todos os territórios. As contas são as mesmas do Colab `boletim_agua_mensal.ipynb`.
@@ -64,9 +71,8 @@ todos os territórios. As contas são as mesmas do Colab `boletim_agua_mensal.ip
 
 ## Formato das planilhas e contornos
 
-- Os contornos de `geo/hidro.geojson` e `geo/subbacia1.geojson` vêm dos assets DHN250 nível 1 e nível 2
-  (`projects/mapbiomas-territories/assets/TERRITORIES-STAGING/BRAZIL/WORKSPACE/DHN250_LEVEL_1/DHN250_LEVEL_1_v2` e
-  `.../DHN250_LEVEL_2/DHN250_LEVEL_2_v3`); o `code` de cada contorno é o `feature_id` das planilhas.
-- O mapa liga contorno e planilha **pelo nome** primeiro e depois pelo código (o `feature_id` dos estados não é o código IBGE).
-- Na planilha de estados, a linha "sem feição" (`feature_id` 0) é o Rio Grande do Sul; a página a renomeia (código 43). Nas planilhas de bacias, "sem feição" continua de fora.
+- O `code` de cada contorno é o `FEATURE_ID` do asset, igual ao `feature_id` das planilhas (nos estados não é o código IBGE).
+- O mapa liga contorno e planilha pelo nome e, se não achar, pelo código.
+- No asset de estados o Rio Grande do Sul tem `FEATURE_ID` 0, e a planilha o chama de "sem feição"; a página o renomeia para Rio Grande do Sul.
+  Nas planilhas de bacias, "sem feição" (água fora dos polígonos do DHN250, ~1,8 Mha, quase constante) continua de fora.
 - Nomes com acento quebrado na planilha (ex.: `Amap\ufffd`) são corrigidos pelo nome do contorno.

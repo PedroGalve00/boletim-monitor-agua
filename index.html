@@ -103,8 +103,8 @@ const ANO_INICIO = +(Q.get('inicio') || 2019);   // série histórica considerad
 const NIVEIS = [
   {ch:'bioma',     arq:'stats_bioma_v3.csv',              rot:'Biomas',               sing:'Bioma',               art:'os biomas', das:'dos biomas',  um:'bioma'},
   {ch:'estado',    arq:'stats_estado_v3.csv',              rot:'Estados',              sing:'Estado',              art:'as UFs', das:'das UFs',     um:'UF'},
-  {ch:'hidro',     arq:'stats_bacia_n1_v3.csv', rot:'Regiões hidrográficas',sing:'Região hidrográfica', art:'as regiões hidrográficas', das:'das regiões hidrográficas', um:'região'},
-  {ch:'subbacia1', arq:'stats_bacia_n2_v3.csv',      rot:'Sub-bacias nível 1', sing:'Sub-bacia nível 1', art:'as sub-bacias nível 1', das:'das sub-bacias nível 1', um:'sub-bacia'},
+  {ch:'bacia_n1',  arq:'stats_bacia_n1_v3.csv', rot:'Bacias hidrográficas nível 1', sing:'Bacia hidrográfica nível 1', art:'as bacias hidrográficas nível 1', das:'das bacias hidrográficas nível 1', um:'bacia'},
+  {ch:'bacia_n2',  arq:'stats_bacia_n2_v3.csv', rot:'Bacias hidrográficas nível 2', sing:'Bacia hidrográfica nível 2', art:'as bacias hidrográficas nível 2', das:'das bacias hidrográficas nível 2', um:'bacia'},
 ];
 const EXCLUIR = new Set(['Fernando de Noronha','Ilha de Fernando de Noronha']);
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -156,6 +156,12 @@ function consertarNome(nome, nomesGeo){
   const re = new RegExp('^' + nome.split('\ufffd').map(t=>t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('.{1,2}') + '$', 'i');
   return nomesGeo.find(n=>re.test(n)) || nome;
 }
+// Nomes em CAIXA ALTA (ex.: "ATLÂNTICO NORDESTE ORIENTAL") -> "Atlântico Nordeste Oriental"
+function capitalizar(nome){
+  if(!nome || nome !== nome.toUpperCase() || !/[A-ZÀ-Ý]{3}/.test(nome)) return nome;
+  return nome.toLowerCase().split(/(\s+|-|\/)/).map((p,i)=>
+    (i>0 && /^(da|das|de|do|dos|e)$/.test(p)) ? p : p.charAt(0).toUpperCase()+p.slice(1)).join('');
+}
 function lerNivel(txt, arq, nomesGeo){
   const rows = parseCSV(txt); const cab = rows[0];
   const ix = Object.fromEntries(Object.entries(CAND).map(([k,c])=>[k, col(cab,c)]));
@@ -163,10 +169,10 @@ function lerNivel(txt, arq, nomesGeo){
   if(falta.length) throw new Error(`${arq}: não achei as colunas ${falta.join(', ')}. Colunas: ${cab.join(', ')}`);
   const T = new Map();
   for(let r=1;r<rows.length;r++){
-    const L = rows[r]; let nome = consertarNome((L[ix.name]||'').trim().replace(/^\[|\]$/g,'').trim(), nomesGeo);
-    // Na planilha de estados, o RS veio como "sem feição" (feature_id 0)
+    const L = rows[r]; let nome = capitalizar(consertarNome((L[ix.name]||'').trim().replace(/^\[|\]$/g,'').trim(), nomesGeo));
+    // Estados: o RS tem FEATURE_ID 0 no asset ESTADOS_IBGE_2025, e a planilha o chama de "sem feição"
     const rsSemFeicao = /estado/i.test(arq) && (/^sem fei/i.test(nome) || normCode(L[ix.code])==='0');
-    if(rsSemFeicao){ nome = 'Rio Grande do Sul'; L[ix.code] = '43'; }
+    if(rsSemFeicao) nome = 'Rio Grande do Sul';
     else if(EXCLUIR.has(nome) || /^sem fei/i.test(nome) || normCode(L[ix.code])==='0') continue;
     const a = parseArea(L[ix.area]); const y = parseInt(L[ix.year]); const m = parseInt(L[ix.month]);
     if(!Number.isFinite(a) || !(m>=1 && m<=12) || !Number.isFinite(y) || y < ANO_INICIO) continue;
@@ -506,7 +512,7 @@ function msgGrafico(nv, val, ref){
   const g = val.filter(r=>r.dif>0), p = val.filter(r=>r.dif<0);
   const sg = g.reduce((a,r)=>a+r.dif,0), sp = p.reduce((a,r)=>a+r.dif,0);
   const subiram = val.filter(r=>r.difAnt>0).length;
-  return `No gráfico, <b>${g.length}</b> ${g.length===1?nv.um.replace(/^(região|bacia)$/, '$1'):(nv.ch==='bioma'?'biomas':nv.ch==='estado'?'UFs':nv.ch==='hidro'?'regiões':'bacias')} ficaram acima da média (<span class="dest">${haTxt(sg)}</span>) e <b>${p.length}</b> abaixo (<span class="dneg">${haTxt(sp)}</span>), saldo de <b>${haTxt(sg+sp)}</b>. Em relação a ${nomeMesAnt(ref)}, <b>${subiram} de ${val.length}</b> tiveram aumento de superfície de água.`;
+  return `No gráfico, <b>${g.length}</b> ${g.length===1?nv.um.replace(/^(região|bacia)$/, '$1'):(nv.ch==='bioma'?'biomas':nv.ch==='estado'?'UFs':'bacias')} ficaram acima da média (<span class="dest">${haTxt(sg)}</span>) e <b>${p.length}</b> abaixo (<span class="dneg">${haTxt(sp)}</span>), saldo de <b>${haTxt(sg+sp)}</b>. Em relação a ${nomeMesAnt(ref)}, <b>${subiram} de ${val.length}</b> tiveram aumento de superfície de água.`;
 }
 
 /** Caixa do mês anterior: maior aumento e maior redução em hectares */
@@ -657,8 +663,8 @@ function montar(ref){
     + slideNivelMapa(NIVEIS[0], R.tabs.bioma, ref, GEO.bioma, {rotulos:'nome', n:'03', n2:'04', tituloMapa:'Desvio da superfície de água por bioma'})
     + slideBiomasMensal(R, ref)
     + slideNivelMapa(NIVEIS[1], R.tabs.estado, ref, GEO.estado, {titulo:'nas Unidades da Federação (UFs)', rotulos:'sigla', n:'05', n2:'06', tituloMapa:'Desvio da superfície de água por UF'})
-    + slideNivelMapa(NIVEIS[2], R.tabs.hidro, ref, GEO.hidro, {titulo:'nas regiões hidrográficas', n:'07', n2:'08', tituloMapa:'Desvio da superfície de água por região hidrográfica'})
-    + slideNivelMapa(NIVEIS[3], R.tabs.subbacia1, ref, GEO.subbacia1, {titulo:'nas sub-bacias nível 1', topN:10, n:'09', n2:'10', tituloMapa:'Desvio da superfície de água por sub-bacia nível 1'})
+    + slideNivelMapa(NIVEIS[2], R.tabs.bacia_n1, ref, GEO.bacia_n1, {titulo:'nas bacias hidrográficas nível 1', n:'07', n2:'08', tituloMapa:'Desvio da superfície de água por bacia hidrográfica nível 1'})
+    + slideNivelMapa(NIVEIS[3], R.tabs.bacia_n2, ref, GEO.bacia_n2, {titulo:'nas bacias hidrográficas nível 2', topN:10, n:'09', n2:'10', tituloMapa:'Desvio da superfície de água por bacia hidrográfica nível 2'})
     + slideRankingHistorico(R, ref);
   document.getElementById('folhas').innerHTML = html;
   window.__BOLETIM__ = {ref, brasil:b, mediaHist, extremos:Object.fromEntries(NIVEIS.map(nv=>[nv.ch, extremos(R.tabs[nv.ch])])), tabelas:R.tabs, mapasCasados:[...MAPA_CASADOS]};
