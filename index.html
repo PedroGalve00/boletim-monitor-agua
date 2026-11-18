@@ -101,10 +101,10 @@ const GEO_BASE = Q.get('geo') || './geo/';
 const LOGO = 'img/logo_mapbiomas_agua.png';
 const ANO_INICIO = +(Q.get('inicio') || 2019);   // série histórica considerada a partir deste ano
 const NIVEIS = [
-  {ch:'bioma',     arq:'biome-water_surface_monthly_v3.csv',              rot:'Biomas',               sing:'Bioma',               art:'os biomas', das:'dos biomas',  um:'bioma'},
-  {ch:'estado',    arq:'state-water_surface_monthly_v3.csv',              rot:'Estados',              sing:'Estado',              art:'as UFs', das:'das UFs',     um:'UF'},
-  {ch:'hidro',     arq:'hydrographicRegion-water_surface_monthly_v3.csv', rot:'Regiões hidrográficas',sing:'Região hidrográfica', art:'as regiões hidrográficas', das:'das regiões hidrográficas', um:'região'},
-  {ch:'subbacia1', arq:'subBasinPnrh1-water_surface_monthly_v3.csv',      rot:'Bacias hidrográficas nível 1 (PNRH)', sing:'Bacia nível 1', art:'as bacias nível 1', das:'das bacias nível 1', um:'bacia'},
+  {ch:'bioma',     arq:'stats_bioma_v3.csv',              rot:'Biomas',               sing:'Bioma',               art:'os biomas', das:'dos biomas',  um:'bioma'},
+  {ch:'estado',    arq:'stats_estado_v3.csv',              rot:'Estados',              sing:'Estado',              art:'as UFs', das:'das UFs',     um:'UF'},
+  {ch:'hidro',     arq:'stats_bacia_n1_v3.csv', rot:'Regiões hidrográficas',sing:'Região hidrográfica', art:'as regiões hidrográficas', das:'das regiões hidrográficas', um:'região'},
+  {ch:'subbacia1', arq:'stats_bacia_n2_v3.csv',      rot:'Sub-bacias nível 1', sing:'Sub-bacia nível 1', art:'as sub-bacias nível 1', das:'das sub-bacias nível 1', um:'sub-bacia'},
 ];
 const EXCLUIR = new Set(['Fernando de Noronha','Ilha de Fernando de Noronha']);
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -113,10 +113,10 @@ const UF_SIGLA = {'Acre':'AC','Alagoas':'AL','Amapá':'AP','Amazonas':'AM','Bahi
 
 /* ===================== LEITURA DOS CSVs (mesma regra do Colab) ===================== */
 const CAND = {
-  code:['code','CD_BIOMA','CD_Bioma','CD_UF','RHI_CD','PS1_CD','PS2_CD','CD_MUN','HYBAS_ID','codigo','id'],
+  code:['feature_id','code','CD_BIOMA','CD_Bioma','CD_UF','RHI_CD','PS1_CD','PS2_CD','CD_MUN','HYBAS_ID','codigo','id'],
   name:['name','NM_BIOMA','Bioma','NM_UF','RHI_NM','PS1_NM','PS2_NM','NM_MUN','nome','bioma','estado'],
   year:['year','ano'], month:['month','mes','mês'],
-  area:['area_ha','water_surface_area_ha','water_surface_ha','superficie_agua_ha','area','value','valor'],
+  area:['ha_agua','area_ha','water_surface_area_ha','water_surface_ha','superficie_agua_ha','area','value','valor'],
 };
 function parseCSV(txt){
   txt = txt.replace(/^﻿/,'');
@@ -150,15 +150,21 @@ const normCode = x => (String(x).trim().replace(/\.0+$/,'').replace(/^0+/,'') ||
 const chaveNome = s => String(s).normalize('NFKD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
 
 /** CSV → Map code → {code, name, serie: Map(ym → ha)} (linhas repetidas por bioma são somadas) */
-function lerNivel(txt, arq){
+/** Nome com acento quebrado na planilha ("Amap\ufffd") → nome certo do contorno ("Amapá") */
+function consertarNome(nome, nomesGeo){
+  if(!nome.includes('\ufffd') || !nomesGeo || !nomesGeo.length) return nome;
+  const re = new RegExp('^' + nome.split('\ufffd').map(t=>t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('.{1,2}') + '$', 'i');
+  return nomesGeo.find(n=>re.test(n)) || nome;
+}
+function lerNivel(txt, arq, nomesGeo){
   const rows = parseCSV(txt); const cab = rows[0];
   const ix = Object.fromEntries(Object.entries(CAND).map(([k,c])=>[k, col(cab,c)]));
   const falta = Object.entries(ix).filter(([,i])=>i<0).map(([k])=>k);
   if(falta.length) throw new Error(`${arq}: não achei as colunas ${falta.join(', ')}. Colunas: ${cab.join(', ')}`);
   const T = new Map();
   for(let r=1;r<rows.length;r++){
-    const L = rows[r]; const nome = (L[ix.name]||'').trim();
-    if(EXCLUIR.has(nome)) continue;
+    const L = rows[r]; const nome = consertarNome((L[ix.name]||'').trim().replace(/^\[|\]$/g,'').trim(), nomesGeo);
+    if(EXCLUIR.has(nome) || /^sem fei/i.test(nome) || normCode(L[ix.code])==='0') continue;
     const a = parseArea(L[ix.area]); const y = parseInt(L[ix.year]); const m = parseInt(L[ix.month]);
     if(!Number.isFinite(a) || !(m>=1 && m<=12) || !Number.isFinite(y) || y < ANO_INICIO) continue;
     const c = normCode(L[ix.code]); const ym = y*100+m;
@@ -339,7 +345,7 @@ function svgBarras(rows, {W=560, lh=null, rotX='Diferença absoluta vs média hi
 function svgMapa(geo, tab, {W=520, H=480, rotulos='nenhum', destaque=null, legenda=true}={}){
   if(!geo) return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" ${FONTE}><rect x="1" y="1" width="${W-2}" height="${H-2}" fill="#fafafa" stroke="#ddd" stroke-dasharray="6 5"/><text x="${W/2}" y="${H/2}" font-size="14" text-anchor="middle" fill="#888">Mapa: contornos não encontrados em geo/</text></svg>`;
   const porCode = new Map(tab.map(r=>[r.code, r])), porNome = new Map(tab.map(r=>[chaveNome(r.name), r]));
-  const achar = p => porCode.get(normCode(p.code ?? '')) || porNome.get(chaveNome(p.name ?? ''));
+  const achar = p => porNome.get(chaveNome(String(p.name ?? '').replace(/^\[|\]$/g,''))) || porCode.get(normCode(p.code ?? ''));
   const aneisGeom = g => !g ? [] : g.type==='Polygon' ? [g.coordinates] : g.type==='MultiPolygon' ? g.coordinates
                        : g.type==='GeometryCollection' ? g.geometries.flatMap(aneisGeom) : [];   // linhas/pontos ficam de fora
   const aneis = f => aneisGeom(f.geometry);
@@ -649,7 +655,7 @@ function montar(ref){
     + slideBiomasMensal(R, ref)
     + slideNivelMapa(NIVEIS[1], R.tabs.estado, ref, GEO.estado, {titulo:'nas Unidades da Federação (UFs)', rotulos:'sigla', n:'05', n2:'06', tituloMapa:'Desvio da superfície de água por UF'})
     + slideNivelMapa(NIVEIS[2], R.tabs.hidro, ref, GEO.hidro, {titulo:'nas regiões hidrográficas', n:'07', n2:'08', tituloMapa:'Desvio da superfície de água por região hidrográfica'})
-    + slideNivelMapa(NIVEIS[3], R.tabs.subbacia1, ref, GEO.subbacia1, {titulo:'nas bacias hidrográficas nível 1 (PNRH)', topN:10, n:'09', n2:'10', tituloMapa:'Desvio da superfície de água por bacia nível 1'})
+    + slideNivelMapa(NIVEIS[3], R.tabs.subbacia1, ref, GEO.subbacia1, {titulo:'nas sub-bacias nível 1', topN:10, n:'09', n2:'10', tituloMapa:'Desvio da superfície de água por sub-bacia nível 1'})
     + slideRankingHistorico(R, ref);
   document.getElementById('folhas').innerHTML = html;
   window.__BOLETIM__ = {ref, brasil:b, mediaHist, extremos:Object.fromEntries(NIVEIS.map(nv=>[nv.ch, extremos(R.tabs[nv.ch])])), tabelas:R.tabs, mapasCasados:[...MAPA_CASADOS]};
@@ -663,6 +669,9 @@ async function iniciar(){
   try{
     VERSAO = new Date().toLocaleDateString('pt-BR');
     DADOS = {};
+    await Promise.all(NIVEIS.map(async nv=>{     // contornos são opcionais: sem eles o mapa mostra um aviso
+      try{ const r = await fetch(`${GEO_BASE}${nv.ch}.geojson`); GEO[nv.ch] = r.ok ? await r.json() : null; }catch(e){ GEO[nv.ch] = null; }
+    }));
     FALTANDO.length = 0;
     await Promise.all(NIVEIS.map(async nv=>{
       const r = await fetch(DADOS_BASE + nv.arq, {cache:'no-cache'});
@@ -670,10 +679,8 @@ async function iniciar(){
         if(nv.ch==='bioma') throw new Error(`Não consegui baixar ${nv.arq} (HTTP ${r.status}) — ela é obrigatória (forma o total do Brasil)`);
         DADOS[nv.ch] = null; FALTANDO.push(nv.arq); return;
       }
-      DADOS[nv.ch] = lerNivel(await r.text(), nv.arq);
-    }));
-    await Promise.all(NIVEIS.map(async nv=>{     // contornos são opcionais: sem eles o mapa mostra um aviso
-      try{ const r = await fetch(`${GEO_BASE}${nv.ch}.geojson`); GEO[nv.ch] = r.ok ? await r.json() : null; }catch(e){ GEO[nv.ch] = null; }
+      const nomesGeo = GEO[nv.ch] ? GEO[nv.ch].features.map(f=>String((f.properties||{}).name||'')) : (nv.ch==='estado' ? Object.keys(UF_SIGLA) : []);
+      DADOS[nv.ch] = lerNivel(await r.text(), nv.arq, nomesGeo);
     }));
     const yms = [...serieBrasil(DADOS.bioma).keys()].sort((a,b)=>b-a);
     const sel = document.getElementById('selMes');

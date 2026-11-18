@@ -13,11 +13,11 @@ contas no navegador e monta o boletim em slides 16:9, no visual do factsheet do 
 ```
 index.html                          página do boletim
 img/logo_mapbiomas_agua.png         logo do cabeçalho (troque pelo arquivo oficial, se quiser)
-dados/                              planilhas mensais v3 (trocar todo mês)
-  biome-water_surface_monthly_v3.csv
-  state-water_surface_monthly_v3.csv
-  hydrographicRegion-water_surface_monthly_v3.csv
-  subBasinPnrh1-water_surface_monthly_v3.csv
+dados/                              estatísticas mensais do Monitor (trocar todo mês)
+  stats_bioma_v3.csv
+  stats_estado_v3.csv
+  stats_bacia_n1_v3.csv            regiões hidrográficas (DHN250 nível 1)
+  stats_bacia_n2_v3.csv            sub-bacias nível 1 (DHN250 nível 2)
 geo/                                contornos simplificados (gerar uma vez)
   bioma.geojson  estado.geojson  hidro.geojson  subbacia1.geojson
 colab/exportar_contornos_boletim.ipynb   gera a pasta geo/ a partir dos assets do Earth Engine
@@ -33,7 +33,7 @@ colab/exportar_contornos_boletim.ipynb   gera a pasta geo/ a partir dos assets d
 
 ## Todo mês
 
-1. Substitua os 4 CSVs em `dados/` (mesmos nomes), **só com os anos de 2019 em diante** — a página ignora anos anteriores, mas o que está no repositório fica público.
+1. Substitua os 4 CSVs `stats_*_v3.csv` em `dados/` (mesmos nomes; colunas `nivel, feature_id, nome, ano, mes, ha_agua_obs, ha_agua_est, ha_agua, n_cartas` — a página usa `ha_agua`, ignora `feature_id` 0 "sem feição" e tira os colchetes dos nomes), **só com os anos de 2019 em diante** — a página ignora anos anteriores, mas o que está no repositório fica público.
 2. Publique (commit no repositório com GitHub Pages ligado).
 3. Abra a página → **Exportar PDF**.
 
@@ -61,3 +61,11 @@ todos os territórios. As contas são as mesmas do Colab `boletim_agua_mensal.ip
 
 - `index.html?mes=2025-06` → um mês específico (também no seletor do topo)
 - `index.html?dados=https://.../&geo=https://.../` → ler de outras pastas públicas
+
+## Formato das planilhas e contornos
+
+- Os contornos de `geo/hidro.geojson` e `geo/subbacia1.geojson` vêm dos assets DHN250 nível 1 e nível 2
+  (`projects/mapbiomas-territories/assets/TERRITORIES-STAGING/BRAZIL/WORKSPACE/DHN250_LEVEL_1/DHN250_LEVEL_1_v2` e
+  `.../DHN250_LEVEL_2/DHN250_LEVEL_2_v3`); o `code` de cada contorno é o `feature_id` das planilhas.
+- O mapa liga contorno e planilha **pelo nome** primeiro e depois pelo código (o `feature_id` dos estados não é o código IBGE).
+- Nomes com acento quebrado na planilha (ex.: `Amap\ufffd`) são corrigidos pelo nome do contorno.
